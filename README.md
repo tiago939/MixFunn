@@ -69,6 +69,19 @@ Feel free to modify and extend the architecture to suit your experimental needs.
 
 ## Citation
 
+If you use MixFunn in your research, please cite our work:
+
+```
+@misc{2025mixfunn,
+      title={MixFunn: A Neural Network for Differential Equations with Improved Generalization and Interpretability}, 
+      author={Tiago de Souza Farias and Gubio Gomes de Lima and Jonas Maziero and Celso Jorge Villas-Boas},
+      year={2025},
+      eprint={2503.22528},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2503.22528}, 
+}
+```
 
 ## Contact
 
