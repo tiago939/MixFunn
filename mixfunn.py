@@ -69,7 +69,7 @@ L = len(functions)
 
 
 class Quad(nn.Module):
-    def __init__(self, n_in, n_out, second_order=False):
+    def __init__(self, n_in, n_out, second_order=True):
         super(Quad, self).__init__()
         
         self.second_order = second_order
