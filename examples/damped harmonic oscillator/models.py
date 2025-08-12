@@ -8,9 +8,7 @@ class MixFunn(nn.Module):
         super(MixFunn, self).__init__()
 
         self.layers = nn.Sequential(
-            mf.Quad(2, 4),
-            mf.MixFun(4, 4, second_order_function=True),
-            mf.Quad(4, 1)
+            mf.Mixfun(1, 1, second_order_function=True),
         )
 
     def forward(self, x):
