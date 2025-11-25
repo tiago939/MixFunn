@@ -115,9 +115,9 @@ class Mixfun(nn.Module):
         #first order projection
         self.project1 = Quad(n_in, L*n_out, second_order=second_order_input)
 
+        self.l = int(L*(L+1)/2) * second_order_function # 0 otherwise
         if second_order_function:
             #second order projection
-            self.l = int(L*(L+1)/2)
             self.project2_1 = Quad(n_in, L*n_out, second_order=second_order_function)
             self.project2_2 = Quad(n_in, L*n_out, second_order=second_order_function)
             self.ids = torch.triu_indices(L, L, 0)
@@ -125,26 +125,28 @@ class Mixfun(nn.Module):
         #neuron output
         self.normalization_function = normalization_function #forces each neuron to choose a single function
         self.normalization_neuron = normalization_neuron #forces each neuron to have a different function from the others
-        if second_order_function:
-            if normalization_function is True and normalization_neuron is True:
-                self.p1 = nn.Parameter(torch.ones(n_out, L + self.l))
-                self.p2 = nn.Parameter(torch.ones(n_out, L + self.l))
-            if normalization_function is False and normalization_neuron is True:
-                self.p = nn.Parameter(torch.ones(n_out, L + self.l))
-            if normalization_function is True and normalization_neuron is False:
-                self.p = nn.Parameter(torch.ones(n_out, L + self.l))
-            if normalization_function is False and normalization_neuron is False:
-                self.p = nn.Parameter(torch.randn(n_out, L + self.l))
+
+        # NICOLAS: notice that the changes between second_order_function
+        # or not is the second argument of torch.ones/randn.
+        # If second_order_function, we add self.l, which is only defined when
+        # second_order_function is True. Then, we can go branchless
+        # by defining "self.l = int(L*(L+1)/2) * second_order_function". It reduces
+        # the amount of branching.
+
+
+        # the following cases are 11, 01, 10 and 00. Notice that 10 and 01
+        # is the same case: self.p = nn.Parameter(torch.ones(n_out, torch_L))
+        # then, the second case can be written with elifs and "or"
+
+        if normalization_function and normalization_neuron:
+            self.p1 = nn.Parameter(torch.ones(n_out, L + self.l))
+            self.p2 = nn.Parameter(torch.ones(n_out, L + self.l))
+
+        elif normalization_function or normalization_neuron:
+            self.p = nn.Parameter(torch.ones(n_out, L + self.l))
+
         else:
-            if normalization_function is True and normalization_neuron is True:
-                self.p1 = nn.Parameter(torch.ones(n_out, L))
-                self.p2 = nn.Parameter(torch.ones(n_out, L))
-            if normalization_function is False and normalization_neuron is True:
-                self.p = nn.Parameter(torch.ones(n_out, L))
-            if normalization_function is True and normalization_neuron is False:
-                self.p = nn.Parameter(torch.ones(n_out, L))
-            if normalization_function is False and normalization_neuron is False:
-                self.p = nn.Parameter(torch.randn(n_out, L))
+            self.p = nn.Parameter(torch.randn(n_out, L + self.l))
 
         if normalization_function or normalization_neuron:
             self.amplitude = nn.Parameter(torch.randn(n_out))
