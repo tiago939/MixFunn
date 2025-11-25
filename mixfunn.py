@@ -75,30 +75,28 @@ class Quad(nn.Module):
         self.second_order = second_order
 
         #first order neurons
-        if second_order is False:
+        if not second_order:
             self.linear = nn.Linear(n_in, n_out)
 
         #second order neurons
-        if second_order is True:
+        else:
             L = int(n_in*(n_in-1)/2)
             self.linear = nn.Linear(L + n_in, n_out)
             self.ids = torch.triu_indices(n_in, n_in, 1)
 
     def forward(self, x):
 
-        if self.second_order is True:
+        # NICOLAS: perceba que voce faz
+        # x = self.linear(x) e retorna, independentemente se
+        # eh segunda ordem ou nao
+
+        if self.second_order:
             x2 = x[:, :, None] @ x[:, None, :]
             x2 = x2[:,self.ids[0], self.ids[1]]
-            
             x = torch.cat((x, x2), axis=1)
-            x = self.linear(x)
-        
-            return x
 
-        else:
-            x = self.linear(x)
-
-            return x
+        x = self.linear(x)
+        return x
 
 
 class Mixfun(nn.Module):
@@ -108,7 +106,8 @@ class Mixfun(nn.Module):
         self.n_in = n_in
         self.n_out = n_out
         self.p_drop = p_drop
-        if p_drop is not False:
+
+        if p_drop:
             self.dropout = nn.Dropout(p=p_drop)
         self.second_order_function = second_order_function
         self.temperature = temperature
@@ -116,7 +115,7 @@ class Mixfun(nn.Module):
         #first order projection
         self.project1 = Quad(n_in, L*n_out, second_order=second_order_input)
 
-        if second_order_function is True:
+        if second_order_function:
             #second order projection
             self.l = int(L*(L+1)/2)
             self.project2_1 = Quad(n_in, L*n_out, second_order=second_order_function)
@@ -126,7 +125,7 @@ class Mixfun(nn.Module):
         #neuron output
         self.normalization_function = normalization_function #forces each neuron to choose a single function
         self.normalization_neuron = normalization_neuron #forces each neuron to have a different function from the others
-        if second_order_function is True:
+        if second_order_function:
             if normalization_function is True and normalization_neuron is True:
                 self.p1 = nn.Parameter(torch.ones(n_out, L + self.l))
                 self.p2 = nn.Parameter(torch.ones(n_out, L + self.l))
@@ -147,12 +146,12 @@ class Mixfun(nn.Module):
             if normalization_function is False and normalization_neuron is False:
                 self.p = nn.Parameter(torch.randn(n_out, L))
 
-        if normalization_function is True or normalization_neuron is True:
+        if normalization_function or normalization_neuron:
             self.amplitude = nn.Parameter(torch.randn(n_out))
 
     def forward(self, x):
 
-        if self.second_order_function is True:
+        if self.second_order_function:
             #first order functions
             x1 = self.project1(x).reshape((x.shape[0], self.n_out, L))
             x1 = torch.stack([functions[i](x1[:, :, i]) for i in range(L)], dim=1).reshape((x.shape[0], self.n_out, L))
@@ -173,29 +172,29 @@ class Mixfun(nn.Module):
             x = self.project1(x).reshape((x.shape[0], self.n_out, L))
             x = torch.stack([functions[i](x[:, :, i]) for i in range(L)], dim=1).reshape((x.shape[0], self.n_out, L))
 
-        if self.p_drop is not False and self.training is True:
+        if self.p_drop and self.training:
             x = self.dropout(x)
 
-        if self.normalization_function is True and self.normalization_neuron is True:
+        if self.normalization_function and self.normalization_neuron:
             Z = torch.sum(torch.exp(-self.p1/self.temperature), axis=1)
             p1 = torch.exp(-self.p1/self.temperature)/(1e-8 + Z.reshape((self.n_out, 1)))
 
             Z = torch.sum(torch.exp(-self.p2/self.temperature), axis=0)
-            if self.second_order_function is True:
+            if self.second_order_function:
                 p2 = torch.exp(-self.p2/self.temperature)/(1e-8 + Z.reshape((1, L + self.l)))
             else:
                 p2 = torch.exp(-self.p2/self.temperature)/(1e-8 + Z.reshape((1, L)))
 
             x = self.amplitude * torch.sum(p2 * p1 * x, axis=2)
 
-        elif self.normalization_function is True and self.normalization_neuron is False:
+        elif self.normalization_function and not self.normalization_neuron:
             Z = torch.sum(torch.exp(-self.p/self.temperature), axis=1)
             p = torch.exp(-self.p/self.temperature)/(1e-8 + Z.reshape((self.n_out, 1)))
             x = self.amplitude * torch.sum(p * x, axis=2)
 
-        elif self.normalization_function is False and self.normalization_neuron is True:
+        elif not self.normalization_function and self.normalization_neuron:
             Z = torch.sum(torch.exp(-self.p/self.temperature), axis=0)
-            if self.second_order_function is True:
+            if self.second_order_function:
                 p = torch.exp(-self.p/self.temperature)/(1e-8 + Z.reshape((1, L + self.l)))
             else:
                 p = torch.exp(-self.p/self.temperature)/(1e-8 + Z.reshape((1, L)))
