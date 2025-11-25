@@ -86,9 +86,8 @@ class Quad(nn.Module):
 
     def forward(self, x):
 
-        # NICOLAS: perceba que voce faz
-        # x = self.linear(x) e retorna, independentemente se
-        # eh segunda ordem ou nao
+        # NICOLAS: notice that you run x = self.linear(x) and return it
+        # independently if second_order or not
 
         if self.second_order:
             x2 = x[:, :, None] @ x[:, None, :]
@@ -182,10 +181,10 @@ class Mixfun(nn.Module):
             p1 = torch.exp(-self.p1/self.temperature)/(1e-8 + Z.reshape((self.n_out, 1)))
 
             Z = torch.sum(torch.exp(-self.p2/self.temperature), axis=0)
-            if self.second_order_function:
-                p2 = torch.exp(-self.p2/self.temperature)/(1e-8 + Z.reshape((1, L + self.l)))
-            else:
-                p2 = torch.exp(-self.p2/self.temperature)/(1e-8 + Z.reshape((1, L)))
+
+            # once again, as we defined self.l = 0 if not second_order_function
+            # we can remove the branching here
+            p2 = torch.exp(-self.p2/self.temperature)/(1e-8 + Z.reshape((1, L + self.l)))
 
             x = self.amplitude * torch.sum(p2 * p1 * x, axis=2)
 
@@ -196,10 +195,7 @@ class Mixfun(nn.Module):
 
         elif not self.normalization_function and self.normalization_neuron:
             Z = torch.sum(torch.exp(-self.p/self.temperature), axis=0)
-            if self.second_order_function:
-                p = torch.exp(-self.p/self.temperature)/(1e-8 + Z.reshape((1, L + self.l)))
-            else:
-                p = torch.exp(-self.p/self.temperature)/(1e-8 + Z.reshape((1, L)))
+            p = torch.exp(-self.p/self.temperature)/(1e-8 + Z.reshape((1, L + self.l)))
             x = self.amplitude * torch.sum(p * x, axis=2)
 
         else:
