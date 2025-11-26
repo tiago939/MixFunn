@@ -194,10 +194,8 @@ class Mixfun(nn.Module):
         if self.p_drop and self.training:
             x = self.dropout(x)
 
-        # NICOLAS: we will rewrite this function with a few changes
-        # notice that we can always define p1 and p2 equal to one, and multiply both
-        # in all cases (except when neither normalization_function and
-        # normalization_neuron are true)
+        # NICOLAS: we rewrite this using inner softmax function
+        # from pytorch
 
         if not (self.normalization_function and self.normalization_neuron):
             return torch.sum(self.p_raw * x, axis=2)
