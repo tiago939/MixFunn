@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import itertools
 import random
 import numpy as np
@@ -202,17 +203,13 @@ class Mixfun(nn.Module):
             return torch.sum(self.p_raw * x, axis=2)
 
         if self.normalization_function:
-            Z_fun = torch.sum(torch.exp(-self.p_fun/self.temperature), axis=1)
-            p_fun = torch.exp(-self.p_fun/self.temperature)
-            p_fun = p_fun/(1e-8 + Z_fun.reshape((self.n_out, 1)))
+            p_fun = F.softmax(-self.p_fun/self.temperature, dim=1)
 
         else:
             p_fun = 1.0
 
         if self.normalization_neuron:
-            Z_neuron = torch.sum(torch.exp(-self.p_neuron/self.temperature), axis=0)
-            p_neuron = torch.exp(-self.p_neuron/self.temperature)
-            p_neuron = p_neuron/(1e-8 + Z_neuron.reshape((1, self.F)))
+            p_neuron = F.softmax(-self.p_neuron/self.temperature, dim=0)
 
         else:
             p_neuron = 1.0
