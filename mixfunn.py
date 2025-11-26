@@ -114,6 +114,13 @@ class Mixfun(nn.Module):
         #first order projection
         self.project1 = Quad(n_in, L*n_out, second_order=second_order_input)
 
+
+        # NICOLAS: notice that the changes between second_order_function
+        # or not is the second argument of torch.ones/randn.
+        # If second_order_function, we add self.l, which is only defined when
+        # second_order_function is True. Then, we can go branchless
+        # by defining "self.l = int(L*(L+1)/2) * second_order_function".
+
         self.l = int(L*(L+1)/2) * int(second_order_function) # 0 otherwise
         self.F = L + self.l # avoid recomputation
 
@@ -126,13 +133,6 @@ class Mixfun(nn.Module):
         #neuron output
         self.normalization_function = normalization_function #forces each neuron to choose a single function
         self.normalization_neuron = normalization_neuron #forces each neuron to have a different function from the others
-
-        # NICOLAS: notice that the changes between second_order_function
-        # or not is the second argument of torch.ones/randn.
-        # If second_order_function, we add self.l, which is only defined when
-        # second_order_function is True. Then, we can go branchless
-        # by defining "self.l = int(L*(L+1)/2) * second_order_function".
-
 
         # the following cases are TT, FT, TF and FF. Notice that TF and FT
         # are the same case: self.p = nn.Parameter(torch.ones(n_out, torch_L))
