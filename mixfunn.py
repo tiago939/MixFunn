@@ -131,10 +131,9 @@ class Mixfun(nn.Module):
             self.dropout = nn.Dropout(p=p_drop)
         self.second_order_function = second_order_function
         self.temperature = temperature
-        Ln = L * n_out
 
         # first order projection
-        self.project1 = Quad(n_in, Ln, second_order=second_order_input)
+        self.project1 = Quad(n_in, L * n_out, second_order=second_order_input)
 
         # NICOLAS: notice that the changes between second_order_function
         # or not is the second argument of torch.ones/randn.
@@ -147,8 +146,12 @@ class Mixfun(nn.Module):
 
         if second_order_function:
             # second order projection
-            self.project21 = Quad(n_in, Ln, second_order=second_order_function)
-            self.project22 = Quad(n_in, Ln, second_order=second_order_function)
+            self.project21 = Quad(
+                n_in, L * n_out, second_order=second_order_function
+            )
+            self.project22 = Quad(
+                n_in, L * n_out, second_order=second_order_function
+            )
             self.ids = torch.triu_indices(L, L, 0)
 
         # neuron output
