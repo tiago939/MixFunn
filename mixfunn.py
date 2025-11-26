@@ -114,7 +114,9 @@ class Mixfun(nn.Module):
         #first order projection
         self.project1 = Quad(n_in, L*n_out, second_order=second_order_input)
 
-        self.l = int(L*(L+1)/2) * second_order_function # 0 otherwise
+        self.l = int(L*(L+1)/2) * int(second_order_function) # 0 otherwise
+        self.F = L + self.l # avoid recomputation
+
         if second_order_function:
             #second order projection
             self.project2_1 = Quad(n_in, L*n_out, second_order=second_order_function)
@@ -136,16 +138,20 @@ class Mixfun(nn.Module):
         # are the same case: self.p = nn.Parameter(torch.ones(n_out, torch_L))
         # thus, the second case can be written with elifs and an "or"
 
-        if normalization_function and normalization_neuron:
-            self.p1 = nn.Parameter(torch.ones(n_out, L + self.l))
-            self.p2 = nn.Parameter(torch.ones(n_out, L + self.l))
+        if not (normalization_function or normalization_neuron):
+            self.p_raw = nn.Parameter(torch.randn(n_out, self.F))
 
-        elif normalization_function or normalization_neuron:
-            self.p = nn.Parameter(torch.ones(n_out, L + self.l))
+        if normalization_function:
+            self.p_fun = nn.Parameter(torch.ones(n_out, self.F))
 
         else:
-            self.p = nn.Parameter(torch.randn(n_out, L + self.l))
+            self.p_fun = None
 
+        if normalization_neuron:
+            self.p_neuron = nn.Parameter(torch.ones(n_out, self.F))
+
+        else:
+            self.p_neuron = None
 
         if normalization_function or normalization_neuron:
             self.amplitude = nn.Parameter(torch.randn(n_out))
@@ -187,33 +193,29 @@ class Mixfun(nn.Module):
         if self.p_drop and self.training:
             x = self.dropout(x)
 
-        # NICOLAS: here, notice that we have the condition TT, TF, FT and FF.
-        # if we have skipped TT, then it means either one (or both) is false.
-        # Then, we don't need to check BOTH each time, we can check only one
+        # NICOLAS: we will rewrite this function with a few changes
+        # notice that we can always define p1 and p2 equal to one, and multiply both
+        # in all cases (except when neither normalization_function and
+        # normalization_neuron are true)
 
-        if self.normalization_function and self.normalization_neuron:
-            Z = torch.sum(torch.exp(-self.p1/self.temperature), axis=1)
-            p1 = torch.exp(-self.p1/self.temperature)/(1e-8 + Z.reshape((self.n_out, 1)))
+        if not (self.normalization_function and self.normalization_neuron):
+            return torch.sum(self.p_raw * x, axis=2)
 
-            Z = torch.sum(torch.exp(-self.p2/self.temperature), axis=0)
-
-            # once again, as we defined self.l = 0 if not second_order_function
-            # we can remove the branching here
-            p2 = torch.exp(-self.p2/self.temperature)/(1e-8 + Z.reshape((1, L + self.l)))
-
-            x = self.amplitude * torch.sum(p2 * p1 * x, axis=2)
-
-        elif self.normalization_function:
-            Z = torch.sum(torch.exp(-self.p/self.temperature), axis=1)
-            p = torch.exp(-self.p/self.temperature)/(1e-8 + Z.reshape((self.n_out, 1)))
-            x = self.amplitude * torch.sum(p * x, axis=2)
-
-        elif self.normalization_neuron:
-            Z = torch.sum(torch.exp(-self.p/self.temperature), axis=0)
-            p = torch.exp(-self.p/self.temperature)/(1e-8 + Z.reshape((1, L + self.l)))
-            x = self.amplitude * torch.sum(p * x, axis=2)
+        if self.normalization_function:
+            Z_fun = torch.sum(torch.exp(-self.p_fun/self.temperature), axis=1)
+            p_fun = torch.exp(-self.p_fun/self.temperature)
+            p_fun = p_fun/(1e-8 + Z_fun.reshape((self.n_out, 1)))
 
         else:
-            x = torch.sum(self.p * x, axis=2)
+            p_fun = 1.0
 
+        if self.normalization_neuron:
+            Z_neuron = torch.sum(torch.exp(-self.p_neuron/self.temperature), axis=0)
+            p_neuron = torch.exp(-self.p_neuron/self.temperature)
+            p_neuron = p_neuron/(1e-8 + Z_neuron.reshape((1, self.F)))
+
+        else:
+            p_neuron = 1.0
+
+        x = self.amplitude * torch.sum(p_neuron * p_fun * x, axis=2)
         return x

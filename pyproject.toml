@@ -6,9 +6,10 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "numpy==2.2.1",
-	"torch==2.5.0",
-	"black>=25.1.0",
-	"black-macchiato",
-	"pre-commit>=4.1.0"
+    "torch==2.5.0",
+    "black>=25.1.0",
+    "black-macchiato",
+    "pre-commit>=4.1.0",
+    "matplotlib>=3.10.7",
 ]
 
