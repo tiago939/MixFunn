@@ -129,13 +129,12 @@ class Mixfun(nn.Module):
         # or not is the second argument of torch.ones/randn.
         # If second_order_function, we add self.l, which is only defined when
         # second_order_function is True. Then, we can go branchless
-        # by defining "self.l = int(L*(L+1)/2) * second_order_function". It reduces
-        # the amount of branching.
+        # by defining "self.l = int(L*(L+1)/2) * second_order_function".
 
 
-        # the following cases are 11, 01, 10 and 00. Notice that 10 and 01
-        # is the same case: self.p = nn.Parameter(torch.ones(n_out, torch_L))
-        # then, the second case can be written with elifs and "or"
+        # the following cases are TT, FT, TF and FF. Notice that TF and FT
+        # are the same case: self.p = nn.Parameter(torch.ones(n_out, torch_L))
+        # thus, the second case can be written with elifs and an "or"
 
         if normalization_function and normalization_neuron:
             self.p1 = nn.Parameter(torch.ones(n_out, L + self.l))
@@ -147,21 +146,34 @@ class Mixfun(nn.Module):
         else:
             self.p = nn.Parameter(torch.randn(n_out, L + self.l))
 
+
         if normalization_function or normalization_neuron:
             self.amplitude = nn.Parameter(torch.randn(n_out))
 
+
+    # __methods are hidden to the user
+    def __project_and_stack(self, x, projection):
+        y = projection(x).reshape((x.shape[0], self.n_out, L))
+
+        # enumerate is more pythonic
+        y = [fun(y[:, :, i]) for i, fun in enumerate(functions)]
+
+        y = torch.stack(y, dim=1).reshape((x.shape[0], self.n_out, L))
+        return y
+
+
     def forward(self, x):
+
+        # NICOLAS: notice the same structure being called over and over
+        # we can abstract it, just fixing the correct projection
 
         if self.second_order_function:
             #first order functions
-            x1 = self.project1(x).reshape((x.shape[0], self.n_out, L))
-            x1 = torch.stack([functions[i](x1[:, :, i]) for i in range(L)], dim=1).reshape((x.shape[0], self.n_out, L))
+            x1 = self.__project_and_stack(x, self.project1)
 
             #second order functions
-            x2_1 = self.project2_1(x).reshape((x.shape[0], self.n_out, L))
-            x2_1 = torch.stack([functions[i](x2_1[:, :, i]) for i in range(L)], dim=1).reshape((x.shape[0], self.n_out, L))
-            x2_2 = self.project2_2(x).reshape((x.shape[0], self.n_out, L))
-            x2_2 = torch.stack([functions[i](x2_2[:, :, i]) for i in range(L)], dim=1).reshape((x.shape[0], self.n_out, L))
+            x2_1 = self.__project_and_stack(x, self.project2_1)
+            x2_2 = self.__project_and_stack(x, self.project2_2)
             x2 = x2_1[:, :, :, None] @ x2_2[:, :, None, :]
             x2 = x2[:, :, self.ids[0], self.ids[1]]
 
@@ -170,11 +182,14 @@ class Mixfun(nn.Module):
 
         else:
             #first order functions
-            x = self.project1(x).reshape((x.shape[0], self.n_out, L))
-            x = torch.stack([functions[i](x[:, :, i]) for i in range(L)], dim=1).reshape((x.shape[0], self.n_out, L))
+            x = self.__project_and_stack(x, self.project1)
 
         if self.p_drop and self.training:
             x = self.dropout(x)
+
+        # NICOLAS: here, notice that we have the condition TT, TF, FT and FF.
+        # if we have skipped TT, then it means either one (or both) is false.
+        # Then, we don't need to check BOTH each time, we can check only one
 
         if self.normalization_function and self.normalization_neuron:
             Z = torch.sum(torch.exp(-self.p1/self.temperature), axis=1)
@@ -188,12 +203,12 @@ class Mixfun(nn.Module):
 
             x = self.amplitude * torch.sum(p2 * p1 * x, axis=2)
 
-        elif self.normalization_function and not self.normalization_neuron:
+        elif self.normalization_function:
             Z = torch.sum(torch.exp(-self.p/self.temperature), axis=1)
             p = torch.exp(-self.p/self.temperature)/(1e-8 + Z.reshape((self.n_out, 1)))
             x = self.amplitude * torch.sum(p * x, axis=2)
 
-        elif not self.normalization_function and self.normalization_neuron:
+        elif self.normalization_neuron:
             Z = torch.sum(torch.exp(-self.p/self.temperature), axis=0)
             p = torch.exp(-self.p/self.temperature)/(1e-8 + Z.reshape((1, L + self.l)))
             x = self.amplitude * torch.sum(p * x, axis=2)
